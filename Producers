@@ -383,19 +383,47 @@ type Global struct {
 	LastNameClose                  string  `json:"last_name_close"`
 }
 
+type ClaimTime struct {
+	eos.JSONTime
+}
+
+func (t ClaimTime) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf("%q", t.JSONTime.Format(eos.JSONTimeFormat))), nil
+}
+
+func (t *ClaimTime) UnmarshalJSON(data []byte) (err error) {
+	var unixNano eos.Int64
+	// With nodeos v1.4.4, the last_claim_time field is a Int64
+	// {"rows":[{"owner":"eoshuobipool","total_votes":"584497237807169280.00000000000000000","producer_key":"EOS5XKswW26cR5VQeDGwgNb5aixv1AMcKkdDNrC59KzNSBfnH6TR7","is_active":1,"url":"http://eoshuobipool.com","unpaid_blocks":228,"last_claim_time":"1545690481500000","location":0}],"total_producer_vote_weight":"28703068147968024576.00000000000000000","more":"eoslaomaocom"}
+	err = json.Unmarshal(data, &unixNano)
+	if err == nil {
+		t.JSONTime.Time = time.Unix(0, int64(unixNano))
+	} else {
+		// With nodeos v1.6.1, the last_claim_time field is a JSONTime
+		// {"rows":[{"owner":"starteosiobp","total_votes":"629912823057227648.00000000000000000","producer_key":"EOS4wZZXm994byKANLuwHD6tV3R3Mu3ktc41aSVXCBaGnXJZJ4pwF","is_active":1,"url":"https://www.starteos.io","unpaid_blocks":6010,"last_claim_time":"2019-03-01T14:20:05.000","location":156}],"total_producer_vote_weight":"32171413583722283008.00000000000000000","more":"zbeosbp11111"}
+		t.JSONTime.Time, err = time.Parse(`"`+eos.JSONTimeFormat+`"`, string(data))
+	}
+
+	return err
+}
+
 type Producer struct {
-	Owner         string      `json:"owner"`
-	TotalVotes    float64     `json:"total_votes,string"`
-	ProducerKey   string      `json:"producer_key"`
-	IsActive      int         `json:"is_active"`
-	URL           string      `json:"url"`
-	UnpaidBlocks  int         `json:"unpaid_blocks"`
-	LastClaimTime JSONFloat64 `json:"last_claim_time"`
-	Location      int         `json:"location"`
+	Owner         string    `json:"owner"`
+	TotalVotes    float64   `json:"total_votes,string"`
+	ProducerKey   string    `json:"producer_key"`
+	IsActive      int       `json:"is_active"`
+	URL           string    `json:"url"`
+	UnpaidBlocks  int       `json:"unpaid_blocks"`
+	LastClaimTime ClaimTime `json:"last_claim_time"`
+	Location      int       `json:"location"`
 }
+
 type ProducersResp struct {
-	Producers []Producer `json:"producers"`
+	Producers               []Producer `json:"rows"`
+	More                    string     `json:"more"`
+	TotalProducerVoteWeight string     `json:"total_producer_vote_weight"`
 }
+
 type GetActionsRequest struct {
 	AccountName AccountName `json:"account_name"`
 	Pos         int64       `json:"pos"`
