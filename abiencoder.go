@@ -212,18 +212,43 @@ func (a *ABI) writeField(binaryEncoder *Encoder, fieldName string, fieldType str
 			return err
 		}
 		object = uint16(i)
-	case "int32", "varint32":
+	case "int32":
 		i, err := valueToInt(fieldName, value, 32)
 		if err != nil {
 			return err
 		}
 		object = int32(i)
-	case "uint32", "varuint32":
+	case "varint32":
+		v, _ := strconv.ParseUint(value.Raw, 10, 32)
+		v = (v << 1) ^ (v >> 31)
+		for true {
+			if (v >> 7) > 0 {
+				binaryEncoder.writeByte(byte(0x80 | (v & 0x7f)))
+				v = v >> 7
+			} else {
+				binaryEncoder.writeByte(byte(v))
+				break
+			}
+		}
+		return nil
+	case "uint32":
 		i, err := valueToUint(fieldName, value, 32)
 		if err != nil {
 			return err
 		}
 		object = uint32(i)
+	case "varuint32":
+		v, _ := strconv.ParseUint(value.Raw, 10, 32)
+		for true {
+			if (v >> 7) > 0 {
+				binaryEncoder.writeByte(byte(0x80 | (v & 0x7f)))
+				v = v >> 7
+			} else {
+				binaryEncoder.writeByte(byte(v))
+				break
+			}
+		}
+		return nil
 	case "int64":
 		var in Int64
 		if err := json.Unmarshal([]byte(value.Raw), &in); err != nil {
@@ -273,7 +298,7 @@ func (a *ABI) writeField(binaryEncoder *Encoder, fieldName string, fieldType str
 		if err != nil {
 			return fmt.Errorf("writing field: time_point_sec: %w", err)
 		}
-		object = TimePointSec(t.UTC().Second())
+		object = TimePointSec(t.UTC().Unix())
 	case "time_point":
 		t, err := time.Parse("2006-01-02T15:04:05.999", value.Str)
 		if err != nil {
